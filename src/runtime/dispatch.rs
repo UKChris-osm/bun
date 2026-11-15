@@ -1032,12 +1032,14 @@ pub(crate) unsafe fn __bun_run_file_poll(poll: *mut FilePoll, size_or_offset: i6
                 fd: i32 = poll_ref.fd.native(),
                 readable: bool = poll_ref.is_readable(),
                 writable: bool = poll_ref.is_writable(),
+                failed: bool = hup || poll_ref.flags.contains(PollFlag::Eof),
             ) {
                 // R-2: deref as shared (`&*const`) — `on_dns_poll` takes `&self` and
                 // `Channel::process` re-enters the resolver via c-ares callbacks.
                 // SAFETY: tag set with this pointee type at `FilePoll::init`.
                 let resolver = unsafe { &*resolver };
-                resolver.on_dns_poll(fd, readable, writable);
+                // A poll that failed or hung up reports no direction; c-ares gets both, like Node: https://github.com/nodejs/node/blob/8a41d9b636be86350cd32847c3f89d327c4f6ff7/src/cares_wrap.cc#L93
+                resolver.on_dns_poll(fd, readable || failed, writable || failed);
             }
         ),
         poll_tag::GET_ADDR_INFO_REQUEST => {
